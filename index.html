@@ -1,0 +1,1541 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Multi-LLM FactChecker & 3D Consensus Evaluator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Text:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    :root {
+      /* Google Material 3 Light Palette */
+      --bg-base: #f8fafd;
+      --bg-surface: #ffffff;
+      --bg-surface-variant: #f0f4f9;
+      --bg-container: #edf2fa;
+      --border-color: #dadce0;
+      --border-subtle: #e8eaed;
+      --text-main: #1f1f1f;
+      --text-muted: #5f6368;
+      --text-tertiary: #80868b;
+      --primary: #1a73e8;
+      --primary-hover: #1557b0;
+      --primary-container: #d3e3fd;
+      --on-primary-container: #041e49;
+      --surface-elevated: #ffffff;
+      --shadow-sm: 0 1px 2px rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
+      --shadow-md: 0 4px 6px rgba(60,64,67,0.15), 0 1px 3px rgba(60,64,67,0.2);
+      --shadow-lg: 0 10px 24px rgba(60,64,67,0.12), 0 4px 8px rgba(60,64,67,0.06);
+
+      /* Google Brand Colors */
+      --g-blue: #1a73e8;
+      --g-red: #ea4335;
+      --g-yellow: #fbbc04;
+      --g-green: #34a853;
+      --good: #34a853;
+      --warn: #fbbc04;
+      --bad: #ea4335;
+      --accent: #1a73e8;
+
+      --card-radius: 20px;
+      --pill-radius: 9999px;
+      --font-display: 'Google Sans', 'Google Sans Text', Roboto, -apple-system, sans-serif;
+      --font-body: 'Google Sans Text', Roboto, -apple-system, sans-serif;
+      --font-mono: 'Roboto Mono', Consolas, Monaco, monospace;
+    }
+
+    [data-theme="dark"] {
+      /* Google Gemini Dark Theme */
+      --bg-base: #131314;
+      --bg-surface: #1e1f20;
+      --bg-surface-variant: #282a2c;
+      --bg-container: #222426;
+      --border-color: #3c4043;
+      --border-subtle: #2d3135;
+      --text-main: #e3e3e3;
+      --text-muted: #9aa0a6;
+      --text-tertiary: #70757a;
+      --primary: #a8c7fa;
+      --primary-hover: #c2e7ff;
+      --primary-container: #0842a0;
+      --on-primary-container: #d3e3fd;
+      --surface-elevated: #282a2c;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.5);
+      --shadow-lg: 0 12px 32px rgba(0,0,0,0.6);
+
+      --g-blue: #8ab4f8;
+      --g-red: #f28b82;
+      --g-yellow: #fdd663;
+      --g-green: #81c995;
+      --good: #81c995;
+      --warn: #fdd663;
+      --bad: #f28b82;
+      --accent: #8ab4f8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      transition: background-color 0.25s ease, color 0.25s ease;
+    }
+
+    /* Google Top Navigation Bar */
+    header.google-nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-color);
+      padding: 12px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: inherit;
+    }
+    .gemini-sparkle {
+      width: 32px;
+      height: 32px;
+      flex-shrink: 0;
+    }
+    .brand-title {
+      font-family: var(--font-display);
+      font-size: 19px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand-pill {
+      font-size: 11px;
+      font-weight: 600;
+      background: var(--primary-container);
+      color: var(--on-primary-container);
+      padding: 3px 10px;
+      border-radius: var(--pill-radius);
+      letter-spacing: 0.2px;
+      text-transform: uppercase;
+    }
+    .nav-tools {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .status-chip {
+      font-size: 12px;
+      font-weight: 500;
+      padding: 5px 12px;
+      border-radius: var(--pill-radius);
+      background: var(--bg-surface-variant);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--g-green);
+    }
+    .icon-btn {
+      background: var(--bg-surface-variant);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .icon-btn:hover {
+      background: var(--border-subtle);
+      transform: translateY(-1px);
+    }
+
+    /* Main Container */
+    main {
+      max-width: 1480px;
+      margin: 0 auto;
+      padding: 28px 24px 60px;
+    }
+
+    /* Google AI Overview Hero Banner */
+    .hero-banner {
+      background: linear-gradient(135deg, rgba(26,115,232,0.06), rgba(52,168,83,0.06) 50%, rgba(251,188,4,0.06));
+      border: 1px solid var(--border-color);
+      border-radius: var(--card-radius);
+      padding: 22px 28px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .hero-text h2 {
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      background: linear-gradient(90deg, var(--g-blue), #9334e8, var(--g-red));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero-text p {
+      color: var(--text-muted);
+      font-size: 14px;
+      max-width: 850px;
+    }
+    .hero-stats {
+      display: flex;
+      gap: 16px;
+    }
+    .hero-stat-box {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 10px 16px;
+      text-align: center;
+      box-shadow: var(--shadow-sm);
+    }
+    .hero-stat-box .num {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--g-blue);
+      font-family: var(--font-display);
+    }
+    .hero-stat-box .lbl {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* Grid Layout */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 460px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+    @media (max-width: 1120px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Cards */
+    .google-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--card-radius);
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+    .google-card:hover {
+      box-shadow: var(--shadow-md);
+    }
+    .card-title {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Search Input Box (Google Inspired) */
+    .search-box-wrap {
+      position: relative;
+      margin-bottom: 14px;
+    }
+    .search-textarea {
+      width: 100%;
+      min-height: 120px;
+      background: var(--bg-surface-variant);
+      color: var(--text-main);
+      border: 1.5px solid var(--border-color);
+      border-radius: 16px;
+      padding: 16px 18px;
+      font-family: var(--font-body);
+      font-size: 14.5px;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+    }
+    .search-textarea:focus {
+      border-color: var(--primary);
+      background: var(--bg-surface);
+      box-shadow: 0 0 0 3px rgba(26,115,232,0.18);
+    }
+
+    /* Prompt Suggestion Chips */
+    .chips-section {
+      margin-bottom: 18px;
+    }
+    .chips-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+      display: block;
+    }
+    .chips-scroll {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .chip {
+      background: var(--bg-surface-variant);
+      border: 1px solid var(--border-color);
+      border-radius: var(--pill-radius);
+      padding: 6px 13px;
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+    .chip:hover {
+      background: var(--primary-container);
+      color: var(--on-primary-container);
+      border-color: var(--primary);
+      transform: translateY(-1px);
+    }
+
+    /* Action Buttons */
+    .action-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .btn {
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: var(--pill-radius);
+      padding: 12px 22px;
+      cursor: pointer;
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: var(--g-blue);
+      color: #ffffff;
+      flex: 1.2;
+      box-shadow: 0 1px 3px rgba(26,115,232,0.3);
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: var(--primary-hover);
+      box-shadow: 0 3px 8px rgba(26,115,232,0.4);
+      transform: translateY(-1px);
+    }
+    .btn-tonal {
+      background: var(--bg-surface-variant);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      flex: 1;
+    }
+    .btn-tonal:hover:not(:disabled) {
+      background: var(--border-subtle);
+      border-color: var(--text-muted);
+    }
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
+    /* Accordion Settings */
+    details.google-details {
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      background: var(--bg-surface-variant);
+      margin-bottom: 16px;
+      overflow: hidden;
+      transition: all 0.2s ease;
+    }
+    details.google-details[open] {
+      background: var(--bg-surface);
+      box-shadow: var(--shadow-sm);
+    }
+    summary.google-summary {
+      padding: 12px 16px;
+      font-weight: 600;
+      font-size: 13.5px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+      color: var(--text-main);
+    }
+    summary.google-summary::-webkit-details-marker { display: none; }
+    .details-body {
+      padding: 16px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    /* Sliders & Inputs */
+    .weights-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .weight-item label {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .form-input {
+      width: 100%;
+      background: var(--bg-surface-variant);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 13px;
+      color: var(--text-main);
+      outline: none;
+    }
+    .form-input:focus {
+      border-color: var(--primary);
+    }
+
+    /* Google 4-Color Animated Progress Bar */
+    .progress-container {
+      height: 6px;
+      background: var(--bg-surface-variant);
+      border-radius: var(--pill-radius);
+      overflow: hidden;
+      margin: 16px 0 10px;
+      position: relative;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--g-blue), var(--g-red), var(--g-yellow), var(--g-green));
+      border-radius: var(--pill-radius);
+      transition: width 0.3s ease;
+    }
+    .status-text {
+      font-size: 13px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 20px;
+    }
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--border-color);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Console Log */
+    .log-box {
+      height: 110px;
+      background: var(--bg-container);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-muted);
+      overflow-y: auto;
+      white-space: pre-wrap;
+      line-height: 1.45;
+      margin-top: 10px;
+    }
+
+    /* Right Section: Results Display */
+    .results-empty {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-muted);
+    }
+    .results-empty svg {
+      width: 56px;
+      height: 56px;
+      margin-bottom: 16px;
+      opacity: 0.6;
+    }
+
+    /* Google AI Overview Card (Winner Announcement) */
+    .winner-overview-card {
+      background: linear-gradient(135deg, rgba(26,115,232,0.08) 0%, rgba(52,168,83,0.08) 100%);
+      border: 1.5px solid var(--g-blue);
+      border-radius: 18px;
+      padding: 20px 24px;
+      margin-bottom: 20px;
+      position: relative;
+    }
+    .winner-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #fef7e0;
+      color: #b06000;
+      border: 1px solid #f9ab00;
+      font-weight: 700;
+      font-size: 12px;
+      padding: 4px 12px;
+      border-radius: var(--pill-radius);
+      margin-bottom: 10px;
+    }
+    [data-theme="dark"] .winner-badge {
+      background: #3c2f00;
+      color: #fdd663;
+      border-color: #7b5f00;
+    }
+    .winner-title {
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 6px;
+    }
+    .winner-reasons {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin: 8px 0 12px;
+    }
+    .winner-formula {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 8px 12px;
+      color: var(--primary);
+      display: inline-block;
+    }
+
+    /* KPI Metrics Summary Grid */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .metric-card {
+      background: var(--bg-surface-variant);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 12px 14px;
+      text-align: center;
+    }
+    .metric-card span {
+      display: block;
+      font-size: 11.5px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .metric-card b {
+      display: block;
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-top: 3px;
+    }
+
+    /* Google Material Tabs */
+    .google-tabs {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 12px;
+      margin-bottom: 20px;
+    }
+    .google-tab {
+      background: transparent;
+      border: none;
+      padding: 8px 16px;
+      font-family: var(--font-display);
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      border-radius: var(--pill-radius);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .google-tab:hover {
+      background: var(--bg-surface-variant);
+      color: var(--text-main);
+    }
+    .google-tab.active {
+      background: var(--primary-container);
+      color: var(--on-primary-container);
+      font-weight: 700;
+    }
+
+    /* Tab Views */
+    .tab-view { display: none; }
+    .tab-view.active { display: block; }
+
+    /* Graph & Heatmap Containers */
+    #graph3d, #heatmap {
+      width: 100%;
+      height: 600px;
+      background: var(--bg-surface-variant);
+      border-radius: 16px;
+      border: 1px solid var(--border-color);
+      overflow: hidden;
+    }
+
+    /* Inspector Detail Cards */
+    .inspector-card {
+      background: var(--bg-surface-variant);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 18px;
+      margin-top: 14px;
+      line-height: 1.55;
+    }
+    .pill-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: var(--pill-radius);
+      font-size: 11.5px;
+      font-weight: 600;
+      background: var(--bg-container);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      margin: 3px;
+    }
+    .pill-badge.good { background: rgba(52,168,83,0.15); border-color: var(--g-green); color: var(--g-green); }
+    .pill-badge.warn { background: rgba(251,188,4,0.15); border-color: var(--g-yellow); color: #b06000; }
+    [data-theme="dark"] .pill-badge.warn { color: var(--g-yellow); }
+    .pill-badge.bad { background: rgba(234,67,53,0.15); border-color: var(--g-red); color: var(--g-red); }
+
+    /* Model Ranking Grid */
+    .ranking-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    .rank-card {
+      background: var(--bg-surface-variant);
+      border: 1.5px solid var(--border-color);
+      border-radius: 16px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    .rank-card:hover {
+      border-color: var(--primary);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-sm);
+    }
+    .rank-card.selected {
+      border-color: var(--primary);
+      background: var(--bg-surface);
+      box-shadow: 0 0 0 2px var(--primary);
+    }
+    .rank-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .rank-badge {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    .score-bar {
+      height: 6px;
+      background: var(--border-color);
+      border-radius: var(--pill-radius);
+      overflow: hidden;
+      margin: 10px 0;
+    }
+    .score-bar-inner {
+      height: 100%;
+      background: linear-gradient(90deg, var(--g-blue), var(--g-green));
+      border-radius: var(--pill-radius);
+    }
+
+    /* Material Table */
+    .table-container {
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      overflow: hidden;
+      max-height: 520px;
+      overflow-y: auto;
+    }
+    table.google-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    table.google-table th {
+      background: var(--bg-surface-variant);
+      padding: 12px 14px;
+      text-align: left;
+      font-weight: 600;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    table.google-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    table.google-table tbody tr {
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    table.google-table tbody tr:hover {
+      background: var(--bg-surface-variant);
+    }
+
+    /* Responses Cards */
+    .answer-card {
+      background: var(--bg-surface-variant);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 18px;
+      margin-bottom: 14px;
+    }
+    .answer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .answer-text {
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text-main);
+      white-space: pre-wrap;
+      margin-bottom: 12px;
+    }
+    .btn-sm {
+      padding: 5px 12px;
+      font-size: 12px;
+      border-radius: var(--pill-radius);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .btn-sm:hover {
+      color: var(--text-main);
+      border-color: var(--text-muted);
+    }
+
+    /* Utility */
+    .hidden { display: none !important; }
+    .fade-in { animation: fadeIn 0.3s ease-in-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body data-theme="dark">
+
+  <!-- Google Navigation Bar -->
+  <header class="google-nav">
+    <a href="#" class="nav-brand">
+      <!-- Google Gemini 4-Color Sparkle SVG -->
+      <svg class="gemini-sparkle" viewBox="0 0 28 28" fill="none">
+        <path d="M14 0C14 7.73199 7.73199 14 0 14C7.73199 14 14 20.268 14 28C14 20.268 20.268 14 28 14C20.268 14 14 7.73199 14 0Z" fill="url(#gemini_grad)"/>
+        <defs>
+          <linearGradient id="gemini_grad" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#4285F4"/>
+            <stop offset="0.33" stop-color="#9B72CB"/>
+            <stop offset="0.66" stop-color="#D96570"/>
+            <stop offset="1" stop-color="#F2A600"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      <div>
+        <div class="brand-title">
+          Multi-LLM FactChecker
+          <span class="brand-pill">3D Evaluator</span>
+        </div>
+      </div>
+    </a>
+
+    <div class="nav-tools">
+      <div id="keyStatusBadge" class="status-chip">
+        <div class="status-indicator"></div>
+        <span id="keyStatusText">Checking .env...</span>
+      </div>
+
+      <!-- Theme Switcher Button -->
+      <button id="themeToggleBtn" class="icon-btn" title="Toggle Light / Dark mode" aria-label="Toggle Theme">
+        <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+      </button>
+
+      <!-- GitHub Link -->
+      <a href="https://github.com/VShaunak/Multi-LLM-factChecker" target="_blank" rel="noopener noreferrer" class="icon-btn" title="View Source on GitHub">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+        </svg>
+      </a>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero Banner -->
+    <section class="hero-banner">
+      <div class="hero-text">
+        <h2>Live 10-LLM Consensus & Cross-Validation</h2>
+        <p>
+          Queries the 10 fastest free LLMs on OpenRouter simultaneously, computes all 45 unique pairwise comparisons, and calculates transparent consensus, quality, confidence, and speed metrics without external judge LLMs.
+        </p>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat-box">
+          <div class="num">10</div>
+          <div class="lbl">Parallel LLMs</div>
+        </div>
+        <div class="hero-stat-box">
+          <div class="num">45</div>
+          <div class="lbl">Pair Comparisons</div>
+        </div>
+        <div class="hero-stat-box">
+          <div class="num">3D</div>
+          <div class="lbl">Math Graph</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Grid -->
+    <div class="main-grid">
+      <!-- Left Column: Controls & Input -->
+      <section class="google-card">
+        <div class="card-title">
+          <span>Evaluate Prompt</span>
+          <span style="font-size: 12px; font-weight: normal; color: var(--text-tertiary);">Port 8020 · No Web Search</span>
+        </div>
+
+        <div class="search-box-wrap">
+          <textarea id="task" class="search-textarea" placeholder="Ask a factual question or enter a topic to test agreement across 10 LLMs (e.g. Big Foot, Quantum Physics, History)..."></textarea>
+        </div>
+
+        <!-- Suggestion Chips -->
+        <div class="chips-section">
+          <span class="chips-label">Sample Questions:</span>
+          <div class="chips-scroll">
+            <span class="chip" onclick="setPrompt('Did Apple\'s financial performance improve in fiscal 2025 compared with 2024? Give important figures and risks.')">🍏 Apple FY25 Financials</span>
+            <span class="chip" onclick="setPrompt('Explain causal discovery in simple language and give one real-world example.')">🔬 Causal Discovery</span>
+            <span class="chip" onclick="setPrompt('What are the strongest arguments for and against using nuclear power to reduce carbon emissions?')">⚛️ Nuclear Energy Pros/Cons</span>
+            <span class="chip" onclick="setPrompt('Compare breadth-first search and A-star search for pathfinding.')">🚀 BFS vs A* Search</span>
+            <span class="chip" onclick="setPrompt('Big Foot')">👣 Big Foot: Legend vs Science</span>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-row">
+          <button id="runBtn" class="btn btn-primary" title="Query 10 OpenRouter free models in parallel">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            Run 10 Free LLMs
+          </button>
+          <button id="demoBtn" class="btn btn-tonal" title="Run demonstration evaluation locally without API key">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+            </svg>
+            Sample Demo
+          </button>
+        </div>
+
+        <!-- Advanced Configuration Accordion -->
+        <details class="google-details">
+          <summary class="google-summary">
+            <span>⚙️ Scoring Weights & Settings</span>
+            <span style="font-size: 11px; color: var(--text-tertiary);">Customize formula</span>
+          </summary>
+          <div class="details-body">
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">
+              Formula: <code>S = w<sub>C</sub>·Agreement + w<sub>Q</sub>·Quality + w<sub>W</sub>·Confidence + w<sub>V</sub>·Speed</code>
+            </div>
+            <div class="weights-grid">
+              <div class="weight-item">
+                <label>Agreement (C): <span id="valAgreement">0.25</span></label>
+                <input id="wAgreement" class="form-input" type="number" step="0.05" value="0.25">
+              </div>
+              <div class="weight-item">
+                <label>Quality (Q): <span id="valQuality">0.55</span></label>
+                <input id="wQuality" class="form-input" type="number" step="0.05" value="0.55">
+              </div>
+              <div class="weight-item">
+                <label>Confidence (W): <span id="valConfidence">0.05</span></label>
+                <input id="wConfidence" class="form-input" type="number" step="0.05" value="0.05">
+              </div>
+              <div class="weight-item">
+                <label>Speed (V): <span id="valSpeed">0.15</span></label>
+                <input id="wSpeed" class="form-input" type="number" step="0.05" value="0.15">
+              </div>
+            </div>
+
+            <div style="margin-top: 14px;">
+              <label style="font-size: 11.5px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Manual Model IDs (Optional, one per line):</label>
+              <textarea id="manualModels" class="form-input" style="min-height: 70px; resize: vertical;" placeholder="Leave empty to let OpenRouter pick the 10 fastest free models dynamically."></textarea>
+            </div>
+
+            <div style="margin-top: 14px;">
+              <label style="font-size: 11.5px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">OpenRouter API Key (Optional override):</label>
+              <input id="apiKeyInput" type="password" class="form-input" placeholder="sk-or-v1-... (leaves .env unchanged unless checked)">
+              <div style="display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--text-muted);">
+                <input type="checkbox" id="saveKeyCheck">
+                <label for="saveKeyCheck" style="cursor: pointer;">Save key to local .env file</label>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <!-- Progress Indicator -->
+        <div class="progress-container">
+          <div id="progressBar" class="progress-bar-fill"></div>
+        </div>
+        <div id="statusText" class="status-text">
+          <span>Ready to evaluate.</span>
+        </div>
+
+        <!-- Real-time Execution Console -->
+        <div id="log" class="log-box">Antigravity Multi-LLM FactChecker ready. Run live or click "Sample Demo" to test.</div>
+      </section>
+
+      <!-- Right Column: Results & Interactive Visuals -->
+      <section class="google-card">
+        <!-- Empty State Placeholder -->
+        <div id="empty" class="results-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+          </svg>
+          <h3 style="font-family: var(--font-display); font-size: 18px; margin-bottom: 6px;">No Evaluation Run Yet</h3>
+          <p style="font-size: 13.5px; max-width: 440px; margin: 0 auto;">
+            Enter a prompt and click <b>Run 10 Free LLMs</b> or <b>Sample Demo</b> to generate 45 pairwise comparisons, a similarity matrix, consensus fact-checking, and the interactive 3D graph.
+          </p>
+        </div>
+
+        <!-- Populated Results Area -->
+        <div id="results" class="hidden fade-in">
+          <!-- Winner Overview Banner -->
+          <div id="winnerBanner" class="winner-overview-card"></div>
+
+          <!-- KPI Summary Metrics -->
+          <div id="summary" class="metrics-grid"></div>
+
+          <!-- Google Segmented Tabs -->
+          <div class="google-tabs">
+            <button class="google-tab active" data-view="graphView">🌐 3D Complete Graph</button>
+            <button class="google-tab" data-view="matrixView">📊 Similarity Matrix</button>
+            <button class="google-tab" data-view="rankingView">🏆 Model Leaderboard</button>
+            <button class="google-tab" data-view="validationView">🔍 Claim & Fact Consensus</button>
+            <button class="google-tab" data-view="responsesView">💬 All 10 Responses</button>
+          </div>
+
+          <!-- Tab 1: 3D Graph -->
+          <div id="graphView" class="tab-view active">
+            <div id="graph3d"></div>
+            <div id="graphDetail" class="inspector-card">
+              <span style="font-weight: 600; color: var(--text-muted);">Interactive 3D Graph Guide:</span>
+              <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                Rotate with left-click drag, zoom with scroll wheel. Click any LLM node or edge midpoint to inspect its pairwise cosine similarity and agreement metrics.
+              </p>
+            </div>
+          </div>
+
+          <!-- Tab 2: Heatmap -->
+          <div id="matrixView" class="tab-view">
+            <div id="heatmap"></div>
+            <div class="inspector-card">
+              <b>Pairwise Metric Formula:</b>
+              <div style="font-family: var(--font-mono); font-size: 12px; margin-top: 6px; color: var(--primary);">
+                Pair Similarity = (0.35 × Text_Cosine + 0.20 × KeyPoint_Cosine + 0.20 × Claim_Cosine) / 0.75
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 3: Model Leaderboard -->
+          <div id="rankingView" class="tab-view">
+            <div id="ranking" class="ranking-grid"></div>
+            <div id="rankDetail" class="inspector-card"></div>
+          </div>
+
+          <!-- Tab 4: Claim Consensus & Fact Checking -->
+          <div id="validationView" class="tab-view">
+            <div style="background: var(--bg-surface-variant); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; font-size: 13px; color: var(--text-muted);">
+              <b>Cross-Model Fact Consensus:</b> Because no search tools are used, "Fact Consensus" measures whether independent models corroborate each other's claims and numerical statements.
+            </div>
+            <div class="table-container">
+              <table id="validationTable" class="google-table"></table>
+            </div>
+            <div id="validationDetail" class="inspector-card"></div>
+          </div>
+
+          <!-- Tab 5: All Model Responses -->
+          <div id="responsesView" class="tab-view">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+              <span id="methodNoteText" style="font-size: 12.5px; color: var(--text-muted);"></span>
+              <button class="btn-sm" onclick="exportJSON()">📥 Download Run JSON</button>
+            </div>
+            <div id="answers"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- JavaScript Logic -->
+  <script>
+    const $ = id => document.getElementById(id);
+    let latest = null;
+    let pollTimer = null;
+    let currentTheme = localStorage.getItem('factchecker_theme') || 'dark';
+
+    // Apply theme
+    function setTheme(t) {
+      currentTheme = t;
+      document.body.setAttribute('data-theme', t);
+      localStorage.setItem('factchecker_theme', t);
+      if (latest) {
+        // Redraw Plotly charts with updated theme colors
+        renderGraph(latest);
+        renderHeatmap(latest);
+      }
+    }
+    setTheme(currentTheme);
+
+    $('themeToggleBtn').onclick = () => {
+      setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+    };
+
+    const esc = s => String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const f = (n, d = 3) => Number(n || 0).toFixed(d);
+    const color = v => v >= 0.75 ? '#34a853' : v >= 0.5 ? '#fbbc04' : '#ea4335';
+
+    function setPrompt(text) {
+      $('task').value = text;
+      $('task').focus();
+    }
+
+    // Load initial config from server
+    fetch('/api/config')
+      .then(r => r.json())
+      .then(c => {
+        if (c.has_saved_key) {
+          $('keyStatusText').textContent = `OpenRouter Key Active · Port ${c.port}`;
+          $('keyStatusBadge').style.borderColor = 'var(--g-green)';
+        } else {
+          $('keyStatusText').textContent = `No API key in .env · Demo mode ready`;
+          $('keyStatusBadge').querySelector('.status-indicator').style.background = 'var(--g-yellow)';
+        }
+      })
+      .catch(() => {
+        $('keyStatusText').textContent = 'Server status unavailable';
+      });
+
+    // Tab switcher
+    document.querySelectorAll('.google-tab').forEach(b => {
+      b.onclick = () => {
+        document.querySelectorAll('.google-tab').forEach(x => x.classList.remove('active'));
+        document.querySelectorAll('.tab-view').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        $(b.dataset.view).classList.add('active');
+        // Trigger Plotly resize when tab becomes visible
+        window.dispatchEvent(new Event('resize'));
+      };
+    });
+
+    function buildPayload(demo) {
+      return {
+        task: $('task').value,
+        demo_mode: demo,
+        manual_models: $('manualModels').value,
+        api_key: $('apiKeyInput').value,
+        save_key: $('saveKeyCheck').checked,
+        weights: {
+          agreement: Number($('wAgreement').value),
+          quality: Number($('wQuality').value),
+          confidence: Number($('wConfidence').value),
+          speed: Number($('wSpeed').value)
+        }
+      };
+    }
+
+    function setBusy(v) {
+      $('runBtn').disabled = v;
+      $('demoBtn').disabled = v;
+    }
+
+    async function startRun(demo) {
+      if (demo && !$('task').value.trim()) {
+        $('task').value = "Big Foot";
+      }
+      if (!$('task').value.trim()) {
+        alert("Please enter a question or prompt first.");
+        return;
+      }
+      setBusy(true);
+      $('log').textContent = 'Starting evaluation...\n';
+      $('progressBar').style.width = '3%';
+      $('statusText').innerHTML = `<span class="spinner"></span> <span>Initializing parallel model workers...</span>`;
+
+      try {
+        const r = await fetch('/api/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildPayload(demo))
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Could not start evaluation');
+        poll(d.job_id);
+      } catch (e) {
+        fail(e.message);
+      }
+    }
+
+    $('runBtn').onclick = () => startRun(false);
+    $('demoBtn').onclick = () => startRun(true);
+
+    function poll(id) {
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(async () => {
+        try {
+          const r = await fetch('/api/status?job_id=' + encodeURIComponent(id));
+          const j = await r.json();
+          $('progressBar').style.width = (j.progress || 0) + '%';
+          $('statusText').innerHTML = `<span class="spinner"></span> <span>${esc(j.status)} (${j.progress || 0}%)</span>`;
+          $('log').textContent = (j.messages || []).join('\n');
+          $('log').scrollTop = $('log').scrollHeight;
+
+          if (j.status === 'complete') {
+            clearInterval(pollTimer);
+            setBusy(false);
+            $('progressBar').style.width = '100%';
+            $('statusText').innerHTML = `<span style="color: var(--g-green); font-weight: 600;">✓ Evaluation Complete</span>`;
+            latest = j.result;
+            renderAll(latest);
+          } else if (j.status === 'error') {
+            clearInterval(pollTimer);
+            fail(j.error);
+          }
+        } catch (e) {
+          clearInterval(pollTimer);
+          fail(e.message);
+        }
+      }, 800);
+    }
+
+    function fail(m) {
+      setBusy(false);
+      $('statusText').innerHTML = `<span style="color: var(--g-red); font-weight: 600;">Error: ${esc(m)}</span>`;
+    }
+
+    function renderAll(d) {
+      $('empty').classList.add('hidden');
+      $('results').classList.remove('hidden');
+
+      const winner = d.models[0] || {};
+      const fastest = Math.min(...d.models.map(m => m.latency_seconds));
+      const avgAgreement = d.models.reduce((acc, m) => acc + (m.agreement_C || 0), 0) / (d.models.length || 1);
+
+      // Winner Banner
+      $('winnerBanner').innerHTML = `
+        <div class="winner-badge">🏆 HIGHEST OVERALL CONSENSUS SCORE</div>
+        <div class="winner-title">${esc(winner.model_name)} <span style="font-size: 14px; font-weight: 400; color: var(--text-muted);">(${esc(winner.model_id)})</span></div>
+        <div class="winner-reasons">
+          ${(d.winner_reasons || []).map(r => `<div>• ${esc(r)}</div>`).join('')}
+        </div>
+        <div class="winner-formula">S = ${f(winner.final_S)} (Agreement: ${f(winner.agreement_C)} | Quality: ${f(winner.quality_Q)} | Speed: ${f(winner.latency_seconds, 2)}s)</div>
+      `;
+
+      // KPI Metrics Summary
+      $('summary').innerHTML = `
+        <div class="metric-card">
+          <span>Active LLMs</span>
+          <b>${d.model_count}</b>
+        </div>
+        <div class="metric-card">
+          <span>Pair Comparisons</span>
+          <b>${d.pair_count}</b>
+        </div>
+        <div class="metric-card">
+          <span>Fastest Latency</span>
+          <b>${f(fastest, 2)}s</b>
+        </div>
+        <div class="metric-card">
+          <span>Winner Score</span>
+          <b>${f(winner.final_S)}</b>
+        </div>
+        <div class="metric-card">
+          <span>Mean Agreement</span>
+          <b>${f(avgAgreement * 100, 1)}%</b>
+        </div>
+      `;
+
+      $('methodNoteText').textContent = d.method_note || '';
+
+      renderGraph(d);
+      renderHeatmap(d);
+      renderRanking(d);
+      renderValidation(d);
+      renderAnswers(d);
+    }
+
+    function positions(n, r = 9) {
+      return Array.from({ length: n }, (_, i) => {
+        const a = (2 * Math.PI * i) / n;
+        return { x: r * Math.cos(a), y: r * Math.sin(a) };
+      });
+    }
+
+    function renderGraph(d) {
+      const ms = d.models;
+      const pos = positions(ms.length);
+      const by = Object.fromEntries(ms.map((m, i) => [m.model_id, { ...m, ...pos[i] }]));
+      const tr = [];
+
+      // Pair edges
+      d.pairs.forEach(p => {
+        const a = by[p.model_a], b = by[p.model_b];
+        if (!a || !b) return;
+        tr.push({
+          type: 'scatter3d',
+          mode: 'lines',
+          x: [a.x, b.x],
+          y: [a.y, b.y],
+          z: [a.final_S * 10, b.final_S * 10],
+          line: { width: 1.5 + p.combined_similarity * 6, color: color(p.combined_similarity) },
+          opacity: 0.3 + p.combined_similarity * 0.5,
+          hoverinfo: 'skip',
+          showlegend: false
+        });
+      });
+
+      // Edge midpoints for hover interaction
+      const mx = [], my = [], mz = [], mt = [], mc = [];
+      d.pairs.forEach((p, i) => {
+        const a = by[p.model_a], b = by[p.model_b];
+        if (!a || !b) return;
+        mx.push((a.x + b.x) / 2);
+        my.push((a.y + b.y) / 2);
+        mz.push((a.final_S + b.final_S) * 5);
+        mt.push(`${esc(a.model_name)} ↔ ${esc(b.model_name)}<br>Combined Sim: ${f(p.combined_similarity)}<br>Text Sim: ${f(p.text_similarity)}<br>Claims Sim: ${f(p.claim_similarity)}`);
+        mc.push(i);
+      });
+
+      tr.push({
+        type: 'scatter3d',
+        mode: 'markers',
+        x: mx, y: my, z: mz,
+        marker: { size: 4, color: d.pairs.map(p => p.combined_similarity), colorscale: 'RdYlGn', cmin: 0, cmax: 1 },
+        text: mt,
+        hoverinfo: 'text',
+        customdata: mc,
+        name: 'Pairs'
+      });
+
+      // Model nodes
+      tr.push({
+        type: 'scatter3d',
+        mode: 'markers+text',
+        x: ms.map((m, i) => pos[i].x),
+        y: ms.map((m, i) => pos[i].y),
+        z: ms.map(m => m.final_S * 10),
+        text: ms.map(m => `#${m.rank} ${m.model_name}`),
+        textposition: 'top center',
+        marker: {
+          size: ms.map(m => 12 + 12 * m.final_S),
+          color: ms.map(m => m.final_S),
+          colorscale: 'Viridis',
+          cmin: 0, cmax: 1,
+          colorbar: { title: 'Score (S)', len: 0.6 },
+          line: { color: currentTheme === 'dark' ? '#ffffff' : '#202124', width: 1.5 }
+        },
+        customdata: ms.map((m, i) => i),
+        hovertext: ms.map(m => `${m.model_name}<br>Final S: ${f(m.final_S)}<br>Agreement: ${f(m.agreement_C)}<br>Speed: ${f(m.latency_seconds, 2)}s`),
+        hoverinfo: 'text',
+        name: 'LLMs'
+      });
+
+      const isDark = currentTheme === 'dark';
+      Plotly.newPlot('graph3d', tr, {
+        paper_bgcolor: 'transparent',
+        plot_bgcolor: 'transparent',
+        font: { color: isDark ? '#e3e3e3' : '#1f1f1f', family: 'Google Sans Text, Roboto, sans-serif' },
+        margin: { l: 0, r: 0, t: 10, b: 0 },
+        showlegend: false,
+        scene: {
+          xaxis: { visible: false },
+          yaxis: { visible: false },
+          zaxis: { title: 'Final Score (S)', color: isDark ? '#9aa0a6' : '#5f6368' },
+          bgcolor: isDark ? '#1a1b1c' : '#f0f4f9',
+          camera: { eye: { x: 1.4, y: 1.4, z: 1.2 } }
+        }
+      }, { responsive: true });
+
+      $('graph3d').on('plotly_click', e => {
+        const p = e.points[0];
+        if (p.data.name === 'LLMs') {
+          showModel(ms[p.customdata], $('graphDetail'));
+        } else {
+          showPair(d.pairs[p.customdata], $('graphDetail'));
+        }
+      });
+    }
+
+    function renderHeatmap(d) {
+      const isDark = currentTheme === 'dark';
+      Plotly.newPlot('heatmap', [{
+        z: d.similarity_matrix,
+        x: d.matrix_labels,
+        y: d.matrix_labels,
+        type: 'heatmap',
+        zmin: 0, zmax: 1,
+        colorscale: 'RdYlGn',
+        text: d.similarity_matrix.map(r => r.map(v => f(v, 2))),
+        texttemplate: '%{text}',
+        hovertemplate: '%{y} ↔ %{x}<br>Similarity: %{z:.3f}<extra></extra>'
+      }], {
+        paper_bgcolor: 'transparent',
+        plot_bgcolor: 'transparent',
+        font: { color: isDark ? '#e3e3e3' : '#1f1f1f', family: 'Google Sans Text, Roboto, sans-serif' },
+        margin: { l: 140, r: 20, t: 25, b: 130 },
+        xaxis: { tickangle: -40, color: isDark ? '#9aa0a6' : '#5f6368' },
+        yaxis: { color: isDark ? '#9aa0a6' : '#5f6368' }
+      }, { responsive: true });
+    }
+
+    function renderRanking(d) {
+      $('ranking').innerHTML = d.models.map((m, i) => `
+        <div class="rank-card" data-i="${i}">
+          <div class="rank-top">
+            <span class="rank-badge">#${m.rank}</span>
+            <span class="pill-badge ${m.final_S >= 0.7 ? 'good' : m.final_S >= 0.4 ? 'warn' : 'bad'}">S: ${f(m.final_S)}</span>
+          </div>
+          <div style="font-weight: 700; font-size: 14.5px; margin-bottom: 2px;">${esc(m.model_name)}</div>
+          <div style="font-size: 11.5px; color: var(--text-muted);">${esc(m.model_id)}</div>
+          <div class="score-bar">
+            <div class="score-bar-inner" style="width: ${m.final_S * 100}%"></div>
+          </div>
+          <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px;">
+            <span class="pill-badge">Agreement ${f(m.agreement_C)}</span>
+            <span class="pill-badge">Quality ${f(m.quality_Q)}</span>
+            <span class="pill-badge">${f(m.latency_seconds, 2)}s</span>
+          </div>
+        </div>
+      `).join('');
+
+      document.querySelectorAll('.rank-card').forEach(x => {
+        x.onclick = () => {
+          document.querySelectorAll('.rank-card').forEach(c => c.classList.remove('selected'));
+          x.classList.add('selected');
+          showModel(d.models[Number(x.dataset.i)], $('rankDetail'));
+        };
+      });
+
+      if (d.models.length) {
+        document.querySelector('.rank-card')?.classList.add('selected');
+        showModel(d.models[0], $('rankDetail'));
+      }
+    }
+
+    function showModel(m, targetEl) {
+      const claims = (m.claims || []).map(c => `
+        <div style="border-left: 3px solid var(--primary); background: var(--bg-surface); padding: 8px 12px; margin: 6px 0; border-radius: 6px; font-size: 13px;">
+          ${esc(c)}
+        </div>
+      `).join('');
+
+      targetEl.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <div>
+            <h3 style="font-family: var(--font-display); font-size: 17px; font-weight: 700;">#${m.rank} ${esc(m.model_name)}</h3>
+            <span style="font-size: 12px; color: var(--text-muted);">${esc(m.model_id)} · Speed: ${f(m.latency_seconds, 2)}s</span>
+          </div>
+          <button class="btn-sm" onclick="copyText(${JSON.stringify(m.answer)})">📋 Copy Response</button>
+        </div>
+        <p style="font-size: 13.5px; line-height: 1.6; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px; margin-bottom: 12px;">
+          ${esc(m.answer).replace(/\n/g, '<br>')}
+        </p>
+        <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px;">
+          <span class="pill-badge">Final S: ${f(m.final_S)}</span>
+          <span class="pill-badge">Agreement C: ${f(m.agreement_C)}</span>
+          <span class="pill-badge">Quality Q: ${f(m.quality_Q)}</span>
+          <span class="pill-badge">Factual Consensus: ${f(m.factual_correctness)}</span>
+          <span class="pill-badge">Claims: ${f(m.claim_consensus)}</span>
+          <span class="pill-badge">Numbers: ${f(m.number_consensus)}</span>
+          <span class="pill-badge">Confidence W: ${f(m.confidence_W)}</span>
+          <span class="pill-badge">Speed V: ${f(m.speed_V)}</span>
+        </div>
+        <h4 style="font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px;">Extracted Claims & Statements:</h4>
+        ${claims || '<p style="font-size: 12.5px; color: var(--text-muted);">No structured claims detected.</p>'}
+      `;
+    }
+
+    function showPair(p, targetEl) {
+      targetEl.innerHTML = `
+        <h3 style="font-family: var(--font-display); font-size: 16px; margin-bottom: 8px;">${esc(p.name_a)} ↔ ${esc(p.name_b)}</h3>
+        <div style="font-family: var(--font-mono); font-size: 12px; color: var(--primary); margin-bottom: 10px;">
+          Combined Similarity: ${f(p.combined_similarity)}
+        </div>
+        <div style="display: flex; gap: 6px;">
+          <span class="pill-badge">Text Similarity: ${f(p.text_similarity)}</span>
+          <span class="pill-badge">Key Points: ${f(p.key_point_similarity)}</span>
+          <span class="pill-badge">Claims: ${f(p.claim_similarity)}</span>
+        </div>
+      `;
+    }
+
+    function renderValidation(d) {
+      $('validationTable').innerHTML = `
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Model</th>
+            <th>Consensus Estimate</th>
+            <th>Claim Agreement</th>
+            <th>Number Consistency</th>
+            <th>Completeness</th>
+            <th>Clarity</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${d.models.map((m, i) => `
+            <tr data-i="${i}">
+              <td><b>#${m.rank}</b></td>
+              <td><b>${esc(m.model_name)}</b></td>
+              <td><span class="pill-badge ${m.factual_correctness >= 0.7 ? 'good' : m.factual_correctness >= 0.4 ? 'warn' : 'bad'}">${f(m.factual_correctness)}</span></td>
+              <td>${f(m.claim_consensus)}</td>
+              <td>${f(m.number_consensus)}</td>
+              <td>${f(m.completeness)}</td>
+              <td>${f(m.clarity)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      `;
+
+      document.querySelectorAll('#validationTable tbody tr').forEach(x => {
+        x.onclick = () => {
+          const m = d.models[Number(x.dataset.i)];
+          $('validationDetail').innerHTML = `
+            <h3 style="font-family: var(--font-display); font-size: 16px; margin-bottom: 6px;">${esc(m.model_name)} — Fact Consensus Breakdown</h3>
+            <p style="font-size: 13.5px; margin-bottom: 10px; background: var(--bg-surface); padding: 12px; border-radius: 10px;">${esc(m.answer).replace(/\n/g, '<br>')}</p>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <span class="pill-badge">Consensus Estimate: ${f(m.factual_correctness)}</span>
+              <span class="pill-badge">Claim Consensus: ${f(m.claim_consensus)}</span>
+              <span class="pill-badge">Numeric Consistency: ${f(m.number_consensus)}</span>
+              <span class="pill-badge">Overall Agreement: ${f(m.agreement_C)}</span>
+            </div>
+          `;
+        };
+      });
+
+      if (d.models.length) {
+        document.querySelector('#validationTable tbody tr')?.click();
+      }
+    }
+
+    function renderAnswers(d) {
+      $('answers').innerHTML = d.models.map(m => `
+        <div class="answer-card">
+          <div class="answer-header">
+            <div>
+              <span class="rank-badge">#${m.rank}</span>
+              <strong style="font-size: 15px; margin-left: 6px;">${esc(m.model_name)}</strong>
+              <span style="font-size: 12px; color: var(--text-muted); margin-left: 8px;">(${esc(m.model_id)})</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="pill-badge">${f(m.latency_seconds, 2)}s</span>
+              <button class="btn-sm" onclick="copyText(${JSON.stringify(m.answer)})">📋 Copy</button>
+            </div>
+          </div>
+          <div class="answer-text">${esc(m.answer)}</div>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap; font-size: 11.5px; color: var(--text-muted);">
+            <span>Score: <b>${f(m.final_S)}</b></span> ·
+            <span>Agreement: <b>${f(m.agreement_C)}</b></span> ·
+            <span>Quality: <b>${f(m.quality_Q)}</b></span> ·
+            <span>Claims extracted: <b>${(m.claims || []).length}</b></span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function copyText(str) {
+      navigator.clipboard.writeText(str).then(() => {
+        alert("Copied to clipboard!");
+      });
+    }
+
+    function exportJSON() {
+      if (!latest) return;
+      const blob = new Blob([JSON.stringify(latest, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `multi_llm_eval_${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>

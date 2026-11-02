@@ -1,0 +1,9 @@
+You are running the correct project when the browser shows:
+
+v4 FREE NO WEB
+RUNNING BUILD v4 FREE NO WEB on port 8020
+
+Correct URL:
+http://127.0.0.1:8020
+
+If you see v3 SAFE or port 8010, close that terminal and start this folder's run_server.bat.

@@ -1,0 +1,19 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local environment & secrets
+.env
+.env.local
+*.log
+
+# Evaluation benchmark outputs (preserve runs directory structure)
+runs/*
+!runs/.gitkeep
+
+# IDEs & OS artifacts
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

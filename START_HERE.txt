@@ -1,0 +1,25 @@
+LIVE 10 FASTEST FREE LLM 3D EVALUATOR - v4 FREE NO WEB
+
+THIS VERSION
+- Uses free OpenRouter models only.
+- Does not use web search, tools, URLs, or citations.
+- Accepts any question, prompt, topic, or text.
+- Runs on port 8020.
+
+RUN
+1. Extract the ZIP into a new folder.
+2. Open .env and add:
+   OPENROUTER_API_KEY=your_key
+3. Save .env.
+4. Close terminals running older versions.
+5. Double-click run_server.bat.
+6. Open http://127.0.0.1:8020
+7. Confirm the page says v4 FREE NO WEB.
+8. Type text such as: Big Foot
+9. Click Run 10 free LLMs.
+
+NO-KEY DEMO
+Click Run sample without API key. It generates 10 local sample answers and all 45 comparisons without contacting OpenRouter.
+
+IMPORTANT
+The app estimates correctness through agreement among the LLM answers. Since it performs no web search, this score is not independent proof that a claim is true.
